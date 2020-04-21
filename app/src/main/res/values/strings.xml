@@ -1,3 +1,16 @@
 <resources>
-    <string name="app_name">TempCheckApp</string>
+    <string name="app_name">快速温变</string>
+
+    <string name="step_1">1、待插入USB设备</string>
+    <string name="step_2">2、正在连接设备。。。</string>
+    <string name="step_3">3、连接成功，开始通信</string>
+    <string name="step_request_permission">正在请求权限。。。</string>
+    <string name="step_permission_failed">权限请求失败</string>
+    <string name="step_connect_error">连接失败</string>
+    <string name="step_error">发生错误：\n</string>
+
+    <string name="light_status_green">绿</string>
+    <string name="light_status_yellow">黄</string>
+    <string name="light_status_red">红</string>
+    <string name="light_status_white">白</string>
 </resources>

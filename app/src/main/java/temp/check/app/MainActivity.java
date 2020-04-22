@@ -10,10 +10,7 @@ import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
-import android.view.View;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -24,7 +21,6 @@ import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
 
@@ -34,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView mTempNo;
     private TextView mTempLight;
     private TextView mInfo;
+    private TextView mUsbCan;
 
     private UsbManager mUsbManager;
     private String USB_PERMISSION = "temp.usb.permission";
@@ -43,6 +40,12 @@ public class MainActivity extends AppCompatActivity {
     private List<UsbSerialDriver> mList = new ArrayList<>();
     private SerialInputOutputManager mIOManager;
 
+    static {
+        System.loadLibrary("jnidispatch");
+        System.loadLibrary("USB2XXX");
+        System.loadLibrary("usb");
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -51,6 +54,7 @@ public class MainActivity extends AppCompatActivity {
         mTempNo = findViewById(R.id.tv_temp_no);
         mTempLight = findViewById(R.id.tv_temp_light);
         mInfo = findViewById(R.id.tv_usb_info);
+        mUsbCan = findViewById(R.id.tv_usb_can);
         registerBroadcast();
     }
 
@@ -104,8 +108,9 @@ public class MainActivity extends AppCompatActivity {
                     || UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
                 mTips.setText(R.string.step_2);
                 LogUtil.d("USB 插入...");
+                search();
+                usb2Can();
             }
-            search();
         }
     };
 
@@ -150,23 +155,22 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onNewData(byte[] data) {
                     //解析data
-                    String d = new String(data);
-                    LogUtil.i(d);
-                    mTips.setText(d);
-                    switch (d){
-                        case "Temp_10k_1":
-                            sendData("LED_green");
-                            break;
-                        case "Temp_10k_2":
-                            sendData("LED_yellow");
-                            break;
-                        case "Temp_10k_3":
-                            sendData("LED_red");
-                            break;
-                        case "Temp_10k_4":
-                            sendData("LED_white");
-                            break;
+                    long value = 0;
+                    value += parseFrame(8, 16, data);
+                    value += parseFrame(24, 16, data);
+                    value += parseFrame(40, 16, data);
+                    value += parseFrame(56, 16, data);
+                    if (value >= -20 && value <= 80) {
+                        sendData(new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0});
+                    } else if (value <= 160) {
+                        sendData(new byte[]{0x2, 0, 0, 0, 0, 0, 0, 0});
+                    } else if (value <= 240) {
+                        sendData(new byte[]{0x4, 0, 0, 0, 0, 0, 0, 0});
+                    } else if (value <= 320) {
+                        sendData(new byte[]{0x8, 0, 0, 0, 0, 0, 0, 0});
                     }
+                    String d = ByteUtils.bytesToHexString(data);
+                    LogUtil.i(d);
                 }
 
                 @Override
@@ -181,6 +185,106 @@ public class MainActivity extends AppCompatActivity {
             mTips.setText(s);
         }
         mTips.setText(R.string.step_3);
+    }
+
+    int[] DevHandleArray = new int[20];
+    int DevHandle;
+    boolean isUsbCanRead = true;
+
+    private void usb2Can() {
+        int ret = 0;
+        byte CANIndex = 0;
+        boolean state;
+        //扫描设备
+        if (mConnection != null) {
+            int fd = mConnection.getFileDescriptor();
+            ret = USB_Device.INSTANCE.USB_ScanDevice(DevHandleArray, fd);
+        }
+        if (ret > 0) {
+            DevHandle = DevHandleArray[0];
+        } else {
+            LogUtil.e("not found device!");
+            return;
+        }
+        //打开设备
+        state = USB_Device.INSTANCE.USB_OpenDevice(DevHandle);
+        if (!state) {
+            mUsbCan.append("Open device error");
+            return;
+        } else {
+            mUsbCan.append("Open device success\n");
+        }
+        //初始化配置CAN
+        USB2CAN.CAN_INIT_CONFIG CANConfig = new USB2CAN.CAN_INIT_CONFIG();
+        CANConfig.CAN_Mode = 1;//环回模式
+        CANConfig.CAN_ABOM = 0;//禁止自动离线
+        CANConfig.CAN_NART = 1;//禁止报文重传
+        CANConfig.CAN_RFLM = 0;//FIFO满之后覆盖旧报文
+        CANConfig.CAN_TXFP = 1;//发送请求决定发送顺序
+        //配置波特率,波特率 = 100M/(BRP*(SJW+BS1+BS2))
+        CANConfig.CAN_BRP = 25;
+        CANConfig.CAN_BS1 = 2;
+        CANConfig.CAN_BS2 = 1;
+        CANConfig.CAN_SJW = 1;
+        ret = USB2CAN.INSTANCE.CAN_Init(DevHandle, CANIndex, CANConfig);
+        if (ret != USB2CAN.CAN_SUCCESS) {
+            mUsbCan.append("Config CAN failed!\n");
+            return;
+        } else {
+            mUsbCan.append("Config CAN success!\n");
+        }
+        //配置过滤器，必须配置，否则可能无法收到数据
+        USB2CAN.CAN_FILTER_CONFIG CANFilter = new USB2CAN.CAN_FILTER_CONFIG();
+        CANFilter.Enable = 1;
+        CANFilter.ExtFrame = 0;
+        CANFilter.FilterIndex = 0;
+        CANFilter.FilterMode = 0;
+        CANFilter.MASK_IDE = 0;
+        CANFilter.MASK_RTR = 0;
+        CANFilter.MASK_Std_Ext = 0;
+        ret = USB2CAN.INSTANCE.CAN_Filter_Init(DevHandle, CANIndex, CANFilter);
+        if (ret != USB2CAN.CAN_SUCCESS) {
+            mUsbCan.append("Config CAN filter failed!\n");
+            return;
+        } else {
+            mUsbCan.append("Config CAN filter success!\n");
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (isUsbCanRead) {
+                    final USB2CAN.CAN_MSG[] CanMsgBuffer = new USB2CAN.CAN_MSG[10];
+                    int CanNum = USB2CAN.INSTANCE.CAN_GetMsg(DevHandle, (byte) 0, CanMsgBuffer);
+                    if (CanNum > 0) {
+                        for (int i = 0; i < CanNum; i++) {
+                            final int finalI = i;
+                            long value = 0;
+                            value += parseFrame(8, 16, CanMsgBuffer[finalI].Data);
+                            value += parseFrame(24, 16, CanMsgBuffer[finalI].Data);
+                            value += parseFrame(40, 16, CanMsgBuffer[finalI].Data);
+                            value += parseFrame(56, 16, CanMsgBuffer[finalI].Data);
+                            if (value >= -20 && value <= 80) {
+                                sendCanData(new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0});
+                            } else if (value <= 160) {
+                                sendCanData(new byte[]{0x2, 0, 0, 0, 0, 0, 0, 0});
+                            } else if (value <= 240) {
+                                sendCanData(new byte[]{0x4, 0, 0, 0, 0, 0, 0, 0});
+                            } else if (value <= 320) {
+                                sendCanData(new byte[]{0x8, 0, 0, 0, 0, 0, 0, 0});
+                            }
+                            mUsbCan.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    String d = ByteUtils.bytesToHexString(CanMsgBuffer[finalI].Data);
+                                    LogUtil.i(d);
+                                    mUsbCan.append(d + "\n");
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -214,17 +318,36 @@ public class MainActivity extends AppCompatActivity {
 
         mInfo.setText(sb.toString());
         connect();//连接
+        usb2Can();//usb2can
     }
 
-    private void sendData(String s) {
-        LogUtil.d("sendData:" + s);
+    private void sendData(byte[] bytes) {
+        LogUtil.d("sendData:" + ByteUtils.bytesToHexString(bytes));
         boolean b = false;
         try {
-            b = mUsbSerialPort.write(s.getBytes(), 100) > 0;
+            b = mUsbSerialPort.write(bytes, 100) > 0;
         } catch (IOException e) {
             e.printStackTrace();
         }
         LogUtil.i("send data " + b);
+    }
+
+    private void sendCanData(byte[] bytes) {
+        USB2CAN.CAN_MSG canMsg = new USB2CAN.CAN_MSG();
+        canMsg.ID = 0x180;
+        canMsg.Data = bytes;
+        USB_Device.INSTANCE.DEV_WriteUserData(DevHandle, 0, canMsg.Data, 8);
+    }
+
+    private static long parseFrame(int start, int length, byte[] bytes) {
+        int lsbbit = start & 7;
+        int lsbbyte = start >> 3;
+        int msbbyte = lsbbyte - ((lsbbit + length - 1) >> 3);
+        long data = 0;
+        for (int i = msbbyte; i < lsbbyte + 1; i++) {
+            data += bytes[i] << ((lsbbyte - i) << 3);
+        }
+        return (data >> lsbbit) & ((1 << length) - 1);
     }
 
     /**
@@ -240,10 +363,12 @@ public class MainActivity extends AppCompatActivity {
             }
             mUsbSerialPort = null;
         }
-        if(mIOManager != null){
+        if (mIOManager != null) {
             mIOManager.stop();
             mIOManager = null;
         }
+        isUsbCanRead = false;
+        USB_Device.INSTANCE.USB_CloseDevice(DevHandle);
     }
 
     @Override

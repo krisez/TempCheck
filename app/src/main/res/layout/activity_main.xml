@@ -40,6 +40,17 @@
         app:layout_constraintTop_toBottomOf="@id/tv_temp_no"/>
 
     <TextView
+        android:id="@+id/tv_usb_can"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:textSize="18sp"
+        android:gravity="bottom"
+        android:textColor="@color/color_black"
+        android:layout_margin="16dp"
+        app:layout_constraintTop_toBottomOf="@id/tv_temp_light"
+        app:layout_constraintBottom_toTopOf="@id/tv_usb_info"/>
+
+    <TextView
         android:id="@+id/tv_usb_info"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -68,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
         intentFilter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         intentFilter.addAction(UsbManager.ACTION_USB_ACCESSORY_ATTACHED);
         intentFilter.addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED);
-        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
+//        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
 //        intentFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
         intentFilter.addAction(USB_PERMISSION);
         registerReceiver(usbReceiver, intentFilter);//注册receiver
@@ -88,9 +88,9 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             String action = intent.getAction();
-            if(action != null && action.equals(Intent.ACTION_SCREEN_ON)){
+/*            if(action != null && action.equals(Intent.ACTION_SCREEN_ON)){
                 LogUtil.d(action);
-            }
+            }*/
             // USB注册动作
             if (USB_PERMISSION.equals(action)) {
                 synchronized (this) {

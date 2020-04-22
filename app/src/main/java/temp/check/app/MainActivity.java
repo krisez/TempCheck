@@ -88,7 +88,9 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             String action = intent.getAction();
-            mTips.setText(action);
+            if(action != null && action.equals(Intent.ACTION_SCREEN_ON)){
+                LogUtil.d(action);
+            }
             // USB注册动作
             if (USB_PERMISSION.equals(action)) {
                 synchronized (this) {

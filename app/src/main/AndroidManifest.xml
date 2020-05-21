@@ -29,6 +29,7 @@
                 android:resource="@xml/device_acce" />
 
         </activity>
+        <activity android:name=".MockActivity" android:screenOrientation="portrait"/>
     </application>
 
 </manifest>

@@ -7,6 +7,15 @@
     tools:context=".MainActivity">
 
     <TextView
+        android:id="@+id/mock"
+        android:layout_width="wrap_content"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_margin="16dp"
+        android:text="模拟数据"
+        android:layout_height="wrap_content"/>
+
+    <TextView
         android:id="@+id/tv_usb_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -23,7 +32,7 @@
         android:layout_marginTop="16dp"
         android:textColor="@color/color_black"
         android:textSize="32sp"
-        android:text="0K"
+        android:text="@string/temp"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent"

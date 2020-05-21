@@ -10,6 +10,7 @@ import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -55,7 +56,14 @@ public class MainActivity extends AppCompatActivity {
         mTempLight = findViewById(R.id.tv_temp_light);
         mInfo = findViewById(R.id.tv_usb_info);
         mUsbCan = findViewById(R.id.tv_usb_can);
+        mTempNo.setText(getString(R.string.temp, 0));
         registerBroadcast();
+        findViewById(R.id.mock).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, MockActivity.class));
+            }
+        });
     }
 
     /**
@@ -162,17 +170,36 @@ public class MainActivity extends AppCompatActivity {
                     value += parseFrame(24, 16, data);
                     value += parseFrame(40, 16, data);
                     value += parseFrame(56, 16, data);
-                    if (value >= -20 && value <= 80) {
-                        sendData(new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0});
-                    } else if (value <= 160) {
-                        sendData(new byte[]{0x2, 0, 0, 0, 0, 0, 0, 0});
-                    } else if (value <= 240) {
-                        sendData(new byte[]{0x4, 0, 0, 0, 0, 0, 0, 0});
-                    } else if (value <= 320) {
-                        sendData(new byte[]{0x8, 0, 0, 0, 0, 0, 0, 0});
+                    value /= 4;//取平均值
+                    if (value > 0) {
+                        if ( value <= 60) {
+                            sendData(new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0});
+                        } else if (value <= 70) {
+                            sendData(new byte[]{0x2, 0, 0, 0, 0, 0, 0, 0});
+                        } else if (value <= 80) {
+                            sendData(new byte[]{0x4, 0, 0, 0, 0, 0, 0, 0});
+                        } else {
+                            sendData(new byte[]{0x8, 0, 0, 0, 0, 0, 0, 0});
+                        }
                     }
                     String d = ByteUtils.bytesToHexString(data);
                     LogUtil.i(d);
+                    final long finalValue = value;
+                    mTempNo.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            mTempNo.setText(getString(R.string.temp, finalValue));
+                            if ( finalValue <= 60) {
+                                mTempLight.setText(getString(R.string.light_status_green));
+                            } else if (finalValue <= 70) {
+                                mTempLight.setText(getString(R.string.light_status_yellow));
+                            } else if (finalValue <= 80) {
+                                mTempLight.setText(getString(R.string.light_status_red));
+                            } else {
+                                mTempLight.setText(getString(R.string.light_status_white));
+                            }
+                        }
+                    });
                 }
 
                 @Override
@@ -265,21 +292,35 @@ public class MainActivity extends AppCompatActivity {
                             value += parseFrame(24, 16, CanMsgBuffer[finalI].Data);
                             value += parseFrame(40, 16, CanMsgBuffer[finalI].Data);
                             value += parseFrame(56, 16, CanMsgBuffer[finalI].Data);
-                            if (value >= -20 && value <= 80) {
-                                sendCanData(new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0});
-                            } else if (value <= 160) {
-                                sendCanData(new byte[]{0x2, 0, 0, 0, 0, 0, 0, 0});
-                            } else if (value <= 240) {
-                                sendCanData(new byte[]{0x4, 0, 0, 0, 0, 0, 0, 0});
-                            } else if (value <= 320) {
-                                sendCanData(new byte[]{0x8, 0, 0, 0, 0, 0, 0, 0});
+                            value /= 4;//取平均值
+                            if (value > 0) {
+                                if ( value <= 60) {
+                                    sendData(new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0});
+                                } else if (value <= 70) {
+                                    sendData(new byte[]{0x2, 0, 0, 0, 0, 0, 0, 0});
+                                } else if (value <= 80) {
+                                    sendData(new byte[]{0x4, 0, 0, 0, 0, 0, 0, 0});
+                                } else {
+                                    sendData(new byte[]{0x8, 0, 0, 0, 0, 0, 0, 0});
+                                }
                             }
+                            final long finalValue = value;
                             mUsbCan.post(new Runnable() {
                                 @Override
                                 public void run() {
                                     String d = ByteUtils.bytesToHexString(CanMsgBuffer[finalI].Data);
                                     LogUtil.i(d);
                                     mUsbCan.append(d + "\n");
+                                    mTempNo.setText(getString(R.string.temp, finalValue));
+                                    if ( finalValue <= 60) {
+                                        mTempLight.setText(getString(R.string.light_status_green));
+                                    } else if (finalValue <= 70) {
+                                        mTempLight.setText(getString(R.string.light_status_yellow));
+                                    } else if (finalValue <= 80) {
+                                        mTempLight.setText(getString(R.string.light_status_red));
+                                    } else {
+                                        mTempLight.setText(getString(R.string.light_status_white));
+                                    }
                                 }
                             });
                         }
@@ -370,7 +411,13 @@ public class MainActivity extends AppCompatActivity {
             mIOManager = null;
         }
         isUsbCanRead = false;
-        USB_Device.INSTANCE.USB_CloseDevice(DevHandle);
+        if (USB_Device.INSTANCE != null) {
+            try {
+                USB_Device.INSTANCE.USB_CloseDevice(DevHandle);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override

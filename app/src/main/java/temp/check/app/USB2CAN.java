@@ -33,9 +33,12 @@ public interface USB2CAN extends Library {
 			// TODO Auto-generated method stub
 			return Arrays.asList(new String[]{"ID","TimeStamp","RemoteFlag","ExternFlag","DataLen","Data"});
 		}
-
-        public int  ID;			//报文ID。
-        public byte[]	Data = new byte[8];	//报文的数据。
+		public int  ID;			//报文ID。
+		public int  TimeStamp;	//接收到信息帧时的时间标识，从CAN 控制器初始化开始计时。
+		public byte RemoteFlag;	//是否是远程帧
+		public byte	ExternFlag;	//是否是扩展帧
+		public byte	DataLen;	//数据长度(<=8)，即Data 的长度。
+		public byte[]	Data = new byte[8];	//报文的数据。
     }
 
     //2.初始化CAN的数据类型定义

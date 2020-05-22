@@ -9,10 +9,10 @@
     <string name="step_connect_error">连接失败</string>
     <string name="step_error">发生错误：\n</string>
 
-    <string name="light_status_green">绿\n\n温度正常</string>
-    <string name="light_status_yellow">黄\n\n温度过高三级警告</string>
-    <string name="light_status_red">红\n\n温度过高二级警告</string>
-    <string name="light_status_white">白\n\n温度过高一级警告</string>
+    <string name="light_status_green">温度正常</string>
+    <string name="light_status_yellow">温度过高三级警告</string>
+    <string name="light_status_red">温度过高二级警告</string>
+    <string name="light_status_white">温度过高一级警告</string>
 
     <string name="temp">%d℃</string>
 </resources>

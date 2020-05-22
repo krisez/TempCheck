@@ -23,6 +23,8 @@ import com.hoho.android.usbserial.util.SerialInputOutputManager;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
@@ -172,16 +174,17 @@ public class MainActivity extends AppCompatActivity {
                     value += parseFrame(56, 16, data);
                     value /= 4;//取平均值
                     if (value > 0) {
-                        if ( value <= 60) {
-                            sendData(new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0});
+                        if (value <= 60) {
+                            LEVEL = 1;
                         } else if (value <= 70) {
-                            sendData(new byte[]{0x2, 0, 0, 0, 0, 0, 0, 0});
+                            LEVEL = 2;
                         } else if (value <= 80) {
-                            sendData(new byte[]{0x4, 0, 0, 0, 0, 0, 0, 0});
+                            LEVEL = 4;
                         } else {
-                            sendData(new byte[]{0x8, 0, 0, 0, 0, 0, 0, 0});
+                            LEVEL = 8;
                         }
                     }
+                    sendData();
                     String d = ByteUtils.bytesToHexString(data);
                     LogUtil.i(d);
                     final long finalValue = value;
@@ -189,7 +192,7 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void run() {
                             mTempNo.setText(getString(R.string.temp, finalValue));
-                            if ( finalValue <= 60) {
+                            if (finalValue <= 60) {
                                 mTempLight.setText(getString(R.string.light_status_green));
                             } else if (finalValue <= 70) {
                                 mTempLight.setText(getString(R.string.light_status_yellow));
@@ -294,14 +297,14 @@ public class MainActivity extends AppCompatActivity {
                             value += parseFrame(56, 16, CanMsgBuffer[finalI].Data);
                             value /= 4;//取平均值
                             if (value > 0) {
-                                if ( value <= 60) {
-                                    sendData(new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0});
+                                if (value <= 60) {
+                                    LEVEL = 1;
                                 } else if (value <= 70) {
-                                    sendData(new byte[]{0x2, 0, 0, 0, 0, 0, 0, 0});
+                                    LEVEL = 2;
                                 } else if (value <= 80) {
-                                    sendData(new byte[]{0x4, 0, 0, 0, 0, 0, 0, 0});
+                                    LEVEL = 4;
                                 } else {
-                                    sendData(new byte[]{0x8, 0, 0, 0, 0, 0, 0, 0});
+                                    LEVEL = 8;
                                 }
                             }
                             final long finalValue = value;
@@ -312,7 +315,7 @@ public class MainActivity extends AppCompatActivity {
                                     LogUtil.i(d);
                                     mUsbCan.append(d + "\n");
                                     mTempNo.setText(getString(R.string.temp, finalValue));
-                                    if ( finalValue <= 60) {
+                                    if (finalValue <= 60) {
                                         mTempLight.setText(getString(R.string.light_status_green));
                                     } else if (finalValue <= 70) {
                                         mTempLight.setText(getString(R.string.light_status_yellow));
@@ -364,22 +367,75 @@ public class MainActivity extends AppCompatActivity {
         usb2Can();//usb2can
     }
 
-    private void sendData(byte[] bytes) {
-        LogUtil.d("sendData:" + ByteUtils.bytesToHexString(bytes));
-        boolean b = false;
-        try {
-            b = mUsbSerialPort.write(bytes, 100) > 0;
-        } catch (IOException e) {
-            e.printStackTrace();
+    private int LEVEL;
+    private int PRE_LEVEL = 0;
+
+    private void sendData() {
+        if (PRE_LEVEL != LEVEL) {
+            startTimer();
         }
-        LogUtil.i("send data " + b);
+    }
+
+    private Timer mTimer;
+
+    private void startTimer() {
+        if (LEVEL != 8) {
+            if (mTimer != null) {
+                mTimer.cancel();
+            }
+            mTimer = new Timer();
+            mTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    //闪烁
+                    byte[] bytes = new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0};
+                    byte[] bytess = new byte[]{0, 0, 0, 0, 0, 0, 0, 0};
+                    //usb
+                    boolean b = false;
+                    try {
+                        b = mUsbSerialPort.write(bytes, 100) > 0;
+                        b = mUsbSerialPort.write(bytess, 100) > 0;
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    LogUtil.i("send data " + b);
+                    //can
+                    USB2CAN.CAN_MSG canMsg = new USB2CAN.CAN_MSG();
+                    canMsg.ID = 0x180;
+                    canMsg.Data = bytes;
+                    USB_Device.INSTANCE.DEV_WriteUserData(DevHandle, 0, canMsg.Data, 8);
+                    canMsg.Data = bytess;
+                    USB_Device.INSTANCE.DEV_WriteUserData(DevHandle, 0, canMsg.Data, 8);
+                }
+            }, 0, 2000 / LEVEL);
+        } else {
+            if (mTimer != null) {
+                mTimer.cancel();
+                mTimer = null;
+            }
+            //常亮
+            byte[] bytes = new byte[]{0x1, 0, 0, 0, 0, 0, 0, 0};
+            //usb
+            boolean b = false;
+            try {
+                b = mUsbSerialPort.write(bytes, 100) > 0;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            LogUtil.i("send data " + b);
+            //can
+            USB2CAN.CAN_MSG canMsg = new USB2CAN.CAN_MSG();
+            canMsg.ID = 0x180;
+            canMsg.Data = bytes;
+            USB_Device.INSTANCE.DEV_WriteUserData(DevHandle, 0, canMsg.Data, 8);
+        }
+
     }
 
     private void sendCanData(byte[] bytes) {
-        USB2CAN.CAN_MSG canMsg = new USB2CAN.CAN_MSG();
-        canMsg.ID = 0x180;
-        canMsg.Data = bytes;
-        USB_Device.INSTANCE.DEV_WriteUserData(DevHandle, 0, canMsg.Data, 8);
+        if (PRE_LEVEL != LEVEL) {
+            startTimer();
+        }
     }
 
     private static long parseFrame(int start, int length, byte[] bytes) {

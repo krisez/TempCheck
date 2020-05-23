@@ -34,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView mTempLight;
     private TextView mInfo;
     private TextView mUsbCan;
+    private TextView mData;
 
     private UsbManager mUsbManager;
     private String USB_PERMISSION = "temp.usb.permission";
@@ -58,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
         mTempLight = findViewById(R.id.tv_temp_light);
         mInfo = findViewById(R.id.tv_usb_info);
         mUsbCan = findViewById(R.id.tv_usb_can);
+        mData = findViewById(R.id.tv_usb_data);
         mTempNo.setText(getString(R.string.temp, 0));
         registerBroadcast();
         findViewById(R.id.mock).setOnClickListener(new View.OnClickListener() {
@@ -160,12 +162,14 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         mUsbSerialPort = mList.get(0).getPorts().get(0); // Most devices have just one port (port 0)
+        String s = getString(R.string.step_3);
         try {
             mUsbSerialPort.open(mConnection);
             mUsbSerialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
             mIOManager = new SerialInputOutputManager(mUsbSerialPort, new SerialInputOutputManager.Listener() {
                 @Override
                 public void onNewData(byte[] data) {
+                    mData.append(ByteUtils.bytesToHexString(data));
                     //解析data
                     long value = 0;
                     value += parseFrame(8, 16, data);
@@ -213,10 +217,9 @@ public class MainActivity extends AppCompatActivity {
             Executors.newSingleThreadExecutor().submit(mIOManager);
         } catch (IOException e) {
             e.printStackTrace();
-            String s = getString(R.string.step_error) + e.getMessage();
-            mTips.setText(s);
+            s = getString(R.string.step_error) + e.getMessage();
         }
-        mTips.setText(R.string.step_3);
+        mTips.setText(s);
     }
 
     int[] DevHandleArray = new int[20];
@@ -235,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
         if (ret > 0) {
             DevHandle = DevHandleArray[0];
         } else {
-            LogUtil.e("not found device!");
+            mUsbCan.setText("not found device!");
             return;
         }
         //打开设备
@@ -289,6 +292,7 @@ public class MainActivity extends AppCompatActivity {
                     int CanNum = USB2CAN.INSTANCE.CAN_GetMsg(DevHandle, (byte) 0, CanMsgBuffer);
                     if (CanNum > 0) {
                         for (int i = 0; i < CanNum; i++) {
+                            mUsbCan.append(ByteUtils.bytesToHexString(CanMsgBuffer[i].Data));
                             final int finalI = i;
                             long value = 0;
                             value += parseFrame(8, 16, CanMsgBuffer[finalI].Data);
@@ -307,6 +311,7 @@ public class MainActivity extends AppCompatActivity {
                                     LEVEL = 8;
                                 }
                             }
+                            sendCanData();
                             final long finalValue = value;
                             mUsbCan.post(new Runnable() {
                                 @Override
@@ -432,7 +437,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void sendCanData(byte[] bytes) {
+    private void sendCanData() {
         if (PRE_LEVEL != LEVEL) {
             startTimer();
         }

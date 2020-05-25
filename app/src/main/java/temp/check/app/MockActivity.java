@@ -18,7 +18,7 @@ public class MockActivity extends AppCompatActivity {
 
     private TextView mTemp;
     private TextView mColor;
-    private long temp = 0;
+    private double temp = 0;
     private int FLAG = 100;
 
 
@@ -68,13 +68,12 @@ public class MockActivity extends AppCompatActivity {
                     mHandler.sendEmptyMessage(0);
                 }
             }
-        }, 0, 100);
+        }, 0, 1000);
     }
 
     private Handler mHandler = new Handler(new Handler.Callback() {
         @Override
         public boolean handleMessage(@NonNull Message msg) {
-            mTemp.setText(getString(R.string.temp, temp));
             mTemp.setText(getString(R.string.temp, temp));
             if (temp <= 60) {
                 mColor.setText(getString(R.string.light_status_green));

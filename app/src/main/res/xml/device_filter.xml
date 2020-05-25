@@ -18,6 +18,8 @@
 
     <!-- 0x1a86 / 0x7523: Qinheng CH340 -->
     <usb-device vendor-id="6790" product-id="29987" />
+    <usb-device vendor-id="6790" product-id="21795"/>
+    <usb-device vendor-id="6790" product-id="21778" />
 
     <!-- CDC driver -->
     <usb-device vendor-id="9025" />                   <!-- 0x2341 / ......: Arduino -->

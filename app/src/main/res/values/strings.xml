@@ -14,5 +14,5 @@
     <string name="light_status_red">温度过高二级警告</string>
     <string name="light_status_white">温度过高一级警告</string>
 
-    <string name="temp">%d℃</string>
+    <string name="temp">%.2f℃</string>
 </resources>

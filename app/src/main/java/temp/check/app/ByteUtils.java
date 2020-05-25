@@ -33,6 +33,26 @@ public class ByteUtils {
 	}
 
 	/**
+	 * 把字节数组转换成16进制字符
+	 *
+	 * @param arg byte数组
+	 * @param length 长度
+	 * @return 16进制字符
+	 */
+	public static String bytesToHexString2(byte[] arg,int length)
+	{
+		StringBuilder result = new StringBuilder();
+		if (arg != null) {
+			for (int i = 0; i < length; i++) {
+				result.append(Integer.toHexString(arg[i] < 0 ? arg[i] + 256 : arg[i]).length() == 1 ? "0" + Integer.toHexString(arg[i] < 0 ? arg[i] + 256 : arg[i])
+						: Integer.toHexString(arg[i] < 0 ? arg[i] + 256 : arg[i])).append(" ");
+			}
+			return result.toString();
+		}
+		return "";
+	}
+
+	/**
 	 * 将16进制字符串转化为byte数组
 	 *
 	 * @param hex  16进制字符串

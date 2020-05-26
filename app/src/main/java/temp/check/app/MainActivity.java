@@ -336,13 +336,8 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void run() {
                     //闪烁
-                    String s1 = FrameUtil.getStandardFrame("3001030000035008" + "1");
-                    String s2 = FrameUtil.getStandardFrame("3001030000035008" + "0");
-                    //usb
-                    write(s1);
-                    write("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
-                    write(s2);
-                    write("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
+                    write(FrameUtil.getStandardFrame("3001030000018104"+"00000100"));
+                    write(FrameUtil.getStandardFrame("3001030000018104"+"00000000"));
                 }
             }, 0, 2000 / LEVEL);
         } else {
@@ -351,10 +346,7 @@ public class MainActivity extends AppCompatActivity {
                 mTimer = null;
             }
             //常亮
-            String s1 = FrameUtil.getStandardFrame("3001030000035008" + "1");
-            //usb
-            write(s1);
-            write("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
+            write(FrameUtil.getStandardFrame("3001030000018104"+"00000100"));
         }
 
     }

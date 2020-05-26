@@ -44,6 +44,7 @@ public class App extends Application {
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
+                Log.d("App", "run: 000");
                 write("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
             }
         }, 0, 1000);
@@ -81,7 +82,7 @@ public class App extends Application {
     }
 
     public static void read(OTGCallBack callBack) {
-        byte[] buffer = new byte[128];
+        byte[] buffer = new byte[40960];
         new Thread(() -> {
             while (isOpen && readFlag) {
                 int length = driver.ReadData(buffer, buffer.length);
@@ -102,11 +103,9 @@ public class App extends Application {
                                     && result.endsWith(FrameUtil.getCheckSum(result.substring(0, result.length() - 2)))) {
                                 callBack.readFinish(result);
                             } else {
-                                assert result != null;
-                                System.out.println("校验不通过：" + FrameUtil.getCheckSum(result.substring(0, result.length() - 2)));
+                                Toast.makeText(context, "校验不通过", Toast.LENGTH_SHORT).show();
                             }
                         } else {
-                            System.out.println("data.length = " + datas.length);
                             for (String temp : datas) {
                                 try {
                                     if (!temp.startsWith("b10103000003")) continue;
@@ -115,7 +114,6 @@ public class App extends Application {
                                     }
                                 } catch (Exception e) {
                                     e.printStackTrace();
-                                    System.out.println("Crash " + temp);
                                 }
 
                             }
@@ -129,10 +127,7 @@ public class App extends Application {
     public static synchronized void write(String data) {
         byte[] hexData = stringTobytes(data);
         driver.WriteData(hexData, hexData.length);
-        //sendSingleHeart();
         Log.d("MyApp", "WriteData: " + byte2HexString(hexData));
-        //Log.d("MyApp",byte2HexString(hexData));
-
     }
 
     public static String byte2HexString(byte[] arg) {

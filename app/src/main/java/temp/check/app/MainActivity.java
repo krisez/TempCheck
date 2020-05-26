@@ -66,12 +66,7 @@ public class MainActivity extends AppCompatActivity {
                 (UsbManager) getSystemService(Context.USB_SERVICE), this,
                 USB_PERMISSION);
         registerBroadcast();*/
-        findViewById(R.id.mock).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startActivity(new Intent(MainActivity.this, MockActivity.class));
-            }
-        });
+        findViewById(R.id.mock).setOnClickListener(v -> startActivity(new Intent(MainActivity.this, MockActivity.class)));
         startRead();
     }
 
@@ -97,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
                         } else {
                             LEVEL = 8;
                         }
-                        sendData();
+//                        sendData();
                     }
                     runOnUiThread(() -> mTempNo.post(() -> {
                         mTempNo.setText(getString(R.string.temp, sum));
@@ -117,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void testFinish(String result) {
                 Message msg = new Message();
-                msg.obj = result.substring(0,result.indexOf("0000"));
+                msg.obj = result.substring(0,64);
                 mHandler.sendMessage(msg);
             }
         });

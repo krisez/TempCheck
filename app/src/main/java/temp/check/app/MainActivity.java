@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import cn.wch.ch34xuartdriver.CH34xUARTDriver;
 
@@ -60,17 +62,67 @@ public class MainActivity extends AppCompatActivity {
         mInfo = findViewById(R.id.tv_usb_info);
         mData = findViewById(R.id.tv_usb_data);
         mTempNo.setText(getString(R.string.temp, 0.0));
-        App.driver = new CH34xUARTDriver(
+        /*App.driver = new CH34xUARTDriver(
                 (UsbManager) getSystemService(Context.USB_SERVICE), this,
                 USB_PERMISSION);
-        registerBroadcast();
+        registerBroadcast();*/
         findViewById(R.id.mock).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 startActivity(new Intent(MainActivity.this, MockActivity.class));
             }
         });
+        startRead();
     }
+
+    private void startRead() {
+
+        App.setReadFlag(true);
+        App.read(new App.OTGCallBack() {
+            @Override
+            public void readFinish(String result) {
+                if (result.contains("324")) {
+                    String temp = result.substring(16, 18);
+                    String decimalStr = result.substring(18, 20);
+                    int integer = Integer.parseInt(temp, 16);
+                    int decimal = Integer.parseInt(decimalStr, 16);
+                    double sum = (integer * 256 + decimal) * 0.01;
+                    if(sum > 0){
+                        if (sum <= 60) {
+                            LEVEL = 1;
+                        } else if (sum <= 70) {
+                            LEVEL = 2;
+                        } else if (sum <= 80) {
+                            LEVEL = 4;
+                        } else {
+                            LEVEL = 8;
+                        }
+                        sendData();
+                    }
+                    runOnUiThread(() -> mTempNo.post(() -> {
+                        mTempNo.setText(getString(R.string.temp, sum));
+                        if (sum <= 60) {
+                            mTempLight.setText(getString(R.string.light_status_green));
+                        } else if (sum <= 70) {
+                            mTempLight.setText(getString(R.string.light_status_yellow));
+                        } else if (sum <= 80) {
+                            mTempLight.setText(getString(R.string.light_status_red));
+                        } else {
+                            mTempLight.setText(getString(R.string.light_status_white));
+                        }
+                    }));
+                }
+            }
+
+            @Override
+            public void testFinish(String result) {
+                Message msg = new Message();
+                msg.obj = result.substring(0,result.indexOf("0000"));
+                mHandler.sendMessage(msg);
+            }
+        });
+    }
+
 
     /**
      * 动态注册usb广播，拔插动作，注册动作
@@ -135,7 +187,12 @@ public class MainActivity extends AppCompatActivity {
                                 return;
                             }
                             mTips.setText(R.string.step_3);
-                            mReadThread.start();//开启读线程读取串口接收的数据
+                            if (App.driver.SetConfig((byte) 115200, (byte) 8, (byte) 1, (byte) 0, (byte) 0)) {
+                                keepHeartbeat();
+                                mReadThread.start();//开启读线程读取串口接收的数据
+                            } else {
+                                mTips.setText(R.string.step_connect_error);
+                            }
                         } else {
                             mTips.setText(R.string.step_connect_error);
                         }
@@ -162,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
     private Handler mHandler = new Handler(new Handler.Callback() {
         @Override
         public boolean handleMessage(@NonNull Message msg) {
-            mData.append( msg.obj + "\n");
+            mData.append(msg.obj + "\n");
             return true;
         }
     });
@@ -170,51 +227,43 @@ public class MainActivity extends AppCompatActivity {
     private Thread mReadThread = new Thread(new Runnable() {
         @Override
         public void run() {
-            byte[] buffer = new byte[4096];
+            byte[] buffer = new byte[128];
             while (true) {
                 try {
                     Message msg = new Message();
-                    int length = App.driver.ReadData(buffer, 4096);
+                    int length = App.driver.ReadData(buffer, 128);
                     if (length > 0) {
-                        double value = 0;
-                        for (int i = 0; i < length; i++) {
-                            value += buffer[i];
-                        }
-                        value /= length;
-                        msg.obj = ByteUtils.bytesToHexString2(buffer, length).substring(0,2);
+                        String str = ByteUtils.bytesToHexString2(buffer, length);
+                        msg.obj = str;
                         mHandler.sendMessage(msg);
-                        if (value > 0) {
-                            if (value <= 60) {
-                                LEVEL = 1;
-                            } else if (value <= 70) {
-                                LEVEL = 2;
-                            } else if (value <= 80) {
-                                LEVEL = 4;
-                            } else {
-                                LEVEL = 8;
-                            }
-                            sendData();
-                            final double finalValue = value;
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    mTempNo.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            mTempNo.setText(getString(R.string.temp, finalValue));
-                                            if (finalValue <= 60) {
-                                                mTempLight.setText(getString(R.string.light_status_green));
-                                            } else if (finalValue <= 70) {
-                                                mTempLight.setText(getString(R.string.light_status_yellow));
-                                            } else if (finalValue <= 80) {
-                                                mTempLight.setText(getString(R.string.light_status_red));
-                                            } else {
-                                                mTempLight.setText(getString(R.string.light_status_white));
-                                            }
-                                        }
-                                    });
+                        if (str.startsWith("66cc0011")) {
+                            String[] datas = str.split("66cc0011");
+                            if (datas.length == 2 || datas.length == 1) {
+                                if (datas.length == 2) System.out.println("data[1] = " + datas[1]);
+                                String s = null;
+                                if (datas[0].length() >= 34)
+                                    s = datas[0].substring(0, 34);
+                                if (datas[1].length() >= 34)
+                                    s = datas[1].substring(0, 34);
+
+                                if (s != null
+                                        && s.endsWith(FrameUtil.getCheckSum(s.substring(0, s.length() - 2)))) {
+                                    dealResult(s);
                                 }
-                            });
+                            } else {
+                                for (String temp : datas) {
+                                    try {
+                                        if (!temp.startsWith("b10103000003")) continue;
+                                        if (temp.endsWith(FrameUtil.getCheckSum(temp.substring(0, temp.length() - 2), "0011"))) {
+                                            dealResult(temp);
+                                        }
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                        System.out.println("Crash " + temp);
+                                    }
+
+                                }
+                            }
                         }
                     }
                 } catch (Exception e) {
@@ -223,6 +272,140 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     });
+
+    private void dealResult(String result) {
+        String temp = result;
+        if (result.contains("324")) {
+            temp = temp.substring(16, 18);
+            String decimalStr = result.substring(18, 20);
+            int integer = Integer.parseInt(temp, 16);
+            int decimal = Integer.parseInt(decimalStr, 16);
+            double value = (integer * 256 + decimal) * 0.01f;
+            if (value > 0) {
+                if (value <= 60) {
+                    LEVEL = 1;
+                } else if (value <= 70) {
+                    LEVEL = 2;
+                } else if (value <= 80) {
+                    LEVEL = 4;
+                } else {
+                    LEVEL = 8;
+                }
+                sendData();
+                final double finalValue = value;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        mTempNo.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                mTempNo.setText(getString(R.string.temp, finalValue));
+                                if (finalValue <= 60) {
+                                    mTempLight.setText(getString(R.string.light_status_green));
+                                } else if (finalValue <= 70) {
+                                    mTempLight.setText(getString(R.string.light_status_yellow));
+                                } else if (finalValue <= 80) {
+                                    mTempLight.setText(getString(R.string.light_status_red));
+                                } else {
+                                    mTempLight.setText(getString(R.string.light_status_white));
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        }
+    }
+
+    private void sendData() {
+        if (PRE_LEVEL != LEVEL) {
+            PRE_LEVEL = LEVEL;
+            startTimer();
+        }
+    }
+
+    private Timer mTimer;
+
+    private void startTimer() {
+        if (LEVEL != 8) {
+            if (mTimer != null) {
+                mTimer.cancel();
+            }
+            mTimer = new Timer();
+            mTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    //闪烁
+                    String s1 = FrameUtil.getStandardFrame("3001030000035008" + "1");
+                    String s2 = FrameUtil.getStandardFrame("3001030000035008" + "0");
+                    //usb
+                    write(s1);
+                    write("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
+                    write(s2);
+                    write("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
+                }
+            }, 0, 2000 / LEVEL);
+        } else {
+            if (mTimer != null) {
+                mTimer.cancel();
+                mTimer = null;
+            }
+            //常亮
+            String s1 = FrameUtil.getStandardFrame("3001030000035008" + "1");
+            //usb
+            write(s1);
+            write("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
+        }
+
+    }
+
+    private Timer mHeart;
+
+    private void keepHeartbeat() {
+        if (mHeart != null) {
+            mHeart.cancel();
+        }
+        mHeart = new Timer();
+        mHeart.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                write("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00");
+            }
+        }, 0, 100);
+    }
+
+    public synchronized void write(String data) {
+        byte[] hexData = stringTobytes(data);
+        boolean b = App.driver.WriteData(hexData, hexData.length) > 0;
+        LogUtil.d("send data" + b);
+    }
+
+    public static byte[] stringTobytes(String hexString) {
+        String stringProcessed = hexString.trim().replaceAll("0x", "");
+        stringProcessed = stringProcessed.replaceAll("\\s+", "");
+        byte[] data = new byte[stringProcessed.length() / 2];
+        int i = 0;
+        int j = 0;
+        while (i <= stringProcessed.length() - 1) {
+            byte character = (byte) Integer.parseInt(stringProcessed.substring(i, i + 2), 16);
+            data[j] = character;
+            j++;
+            i += 2;
+        }
+        return data;
+    }
+
+    private static long parseFrame(int start, int length, byte[] bytes) {
+        int lsbbit = start & 7;
+        int lsbbyte = start >> 3;
+        int msbbyte = lsbbyte - ((lsbbit + length - 1) >> 3);
+        long data = 0;
+        for (int i = msbbyte; i < lsbbyte + 1; i++) {
+            data += bytes[i] << ((lsbbyte - i) << 3);
+        }
+        return (data >> lsbbit) & ((1 << length) - 1);
+    }
+
 
     //查询设备
     private void search() {
@@ -342,68 +525,6 @@ public class MainActivity extends AppCompatActivity {
     private int LEVEL;
     private int PRE_LEVEL = 0;
 
-    private void sendData() {
-        if (PRE_LEVEL != LEVEL) {
-            PRE_LEVEL = LEVEL;
-            startTimer();
-        }
-    }
-
-    private Timer mTimer;
-
-    private void startTimer() {
-        if (LEVEL != 8) {
-            if (mTimer != null) {
-                mTimer.cancel();
-            }
-            mTimer = new Timer();
-            mTimer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    //闪烁
-                    byte[] bytes = new byte[]{0x1};
-                    byte[] bytess = new byte[]{0x0};
-                    //usb
-                    boolean b = false;
-                    try {
-                        b = App.driver.WriteData(bytes, 1) > 0;
-                        b = App.driver.WriteData(bytess, 1) > 0;
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    LogUtil.i("send data " + b);
-                }
-            }, 0, 2000 / LEVEL);
-        } else {
-            if (mTimer != null) {
-                mTimer.cancel();
-                mTimer = null;
-            }
-            //常亮
-            byte[] bytes = new byte[]{0x1};
-            //usb
-            boolean b = false;
-            try {
-                b = App.driver.WriteData(bytes, 1) > 0;
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            LogUtil.i("send data " + b);
-        }
-
-    }
-
-    private static long parseFrame(int start, int length, byte[] bytes) {
-        int lsbbit = start & 7;
-        int lsbbyte = start >> 3;
-        int msbbyte = lsbbyte - ((lsbbit + length - 1) >> 3);
-        long data = 0;
-        for (int i = msbbyte; i < lsbbyte + 1; i++) {
-            data += bytes[i] << ((lsbbyte - i) << 3);
-        }
-        return (data >> lsbbit) & ((1 << length) - 1);
-    }
-
     /**
      * usb设备断开连接
      */
@@ -422,7 +543,7 @@ public class MainActivity extends AppCompatActivity {
             mIOManager = null;
         }
         App.driver.CloseDevice();
-        if(mReadThread.isAlive()){
+        if (mReadThread.isAlive()) {
             mReadThread.interrupt();
         }
     }
